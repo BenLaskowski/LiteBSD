@@ -378,7 +378,14 @@ mach_init()
     /*
      * Find out how much memory is available.
      */
+#ifdef MZDA_STARTER
+    // MZ DA family we are interested in all have 640 kB RAM
+    #pragma message "Using 640 kB memory since MZDA_STARTER is defined"
+    physmem = btoc(640 * 1024);
+#else
+    // all other (?) PIC32MZs have 512 kB
     physmem = btoc(512 * 1024);
+#endif
 
     /*
      * Initialize error message buffer (at end of core).
