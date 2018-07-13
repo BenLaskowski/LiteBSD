@@ -402,7 +402,7 @@ mach_init()
     case 0x07227053: model = "PIC32MZ2048EFH144"; break;
     case 0x0724F053: model = "PIC32MZ2048EFM144"; break;
     case 0x05F4E053: model = "PIC32MZ2064DAG169"; break;
-    case 0x05F4F053: model = "PIC32MZ2064DAG169"; break;
+    case 0x05F4F053: model = "PIC32MZ2064DAH169"; break;
     case 0x05FBA053: model = "PIC32MZ2064DAG176"; break;
     case 0x05FBB053: model = "PIC32MZ2064DAH176"; break;
     }
