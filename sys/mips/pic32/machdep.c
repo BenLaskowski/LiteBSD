@@ -157,6 +157,38 @@ PIC32_DEVCFG (
     DEVCFG3_USERID(0xffff));    /* User-defined ID */
 #endif
 
+#if defined(MZDA_STARTER)
+PIC32MZDA_DEVCFG (
+//    33222222222211111111110000000000
+//    10987654321098765432109876543210
+    0b11111101111110111111111111010000, // normal EJTAG, POSC AGC on, 
+                                        // max AGC delay, POSCFG3, POSCBOOST on,
+                                        // POSCCG3, SOSCBOOST off, SOSCGAIN G3,
+                                        // normal MCLR, full debug permissions,
+                                        // flash can sleep, ECC disabled, MIPS32,
+                                        // TRC off, PGED/PGEC2, JTAG off, debug on
+    
+    0b01011101011101000011111000111111, // DMT off, 2^31 DMT, 50% WDT window,
+                                        // WDT off, WDT non-windowed, WDT stops
+                                        // during flash programming, 2^20 WDT PS,
+                                        // clock switching disabled, CLKO disabled,
+                                        // HS osc, IESO disabled, SOSC disabled,
+                                        // 127/128 DMT window, SPLL osc
+
+    0b11111111111110011011000100101010, // 24 MHz USB input, deep sleep on wait,
+                                        // DSWDT on, LPRC for DSWDT, 2^36 DSWDT PS,
+                                        // DSBOR on, VBAT BOR on, PLL ODIV = 2,
+                                        // PLL mult = 100, PLL input = primary,
+                                        // 8 - 16 MHz PLL input, PLL IDIV = 3
+
+    0b11111110111101011111111111111111, // PPS 1 config, PMD 1 config, PGL 1 config,
+                                        // default Ethernet pins, RMII, 32 MB DDR,
+                                        // 0xFFFF user ID
+
+    0b11110100111111111111111111111111);// 2^20 WDT PS in sleep mode
+#endif
+
+
 #if defined(MEBII) || defined(HMZ144) || defined(SNADPIC) || defined(EMZ64)
 /*
  * Boot code at bfc00000.
@@ -369,6 +401,10 @@ mach_init()
     case 0x07222053: model = "PIC32MZ2048EFG144"; break;
     case 0x07227053: model = "PIC32MZ2048EFH144"; break;
     case 0x0724F053: model = "PIC32MZ2048EFM144"; break;
+    case 0x05F4E053: model = "PIC32MZ2064DAG169"; break;
+    case 0x05F4F053: model = "PIC32MZ2064DAG169"; break;
+    case 0x05FBA053: model = "PIC32MZ2064DAG176"; break;
+    case 0x05FBB053: model = "PIC32MZ2064DAH176"; break;
     }
     if (model)
         strcpy(cpu_model, model);

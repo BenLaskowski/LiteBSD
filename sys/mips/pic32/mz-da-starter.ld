@@ -7,7 +7,7 @@ OUTPUT_ARCH(mips)
 ENTRY(start)
 MEMORY
 {
-  devcfg            (r)     : ORIGIN = 0x9fc0ffc0, LENGTH = 16
+  devcfg            (r)     : ORIGIN = 0x9fc0ffbc, LENGTH = 20
   devsign           (r)     : ORIGIN = 0x9fc0ffe0, LENGTH = 16
 
   /* Required by Microchip C32 linker */
@@ -99,6 +99,7 @@ SECTIONS
   /* Device configuration.  */
   .devcfg       :
   {
+    *(.config4)
     *(.config3)
     *(.config2)
     *(.config1)

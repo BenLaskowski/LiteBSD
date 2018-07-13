@@ -79,6 +79,14 @@
     unsigned __DEVCFG2 __attribute__ ((section(".config2"))) = (cfg2) | DEVCFG2_UNUSED; \
     unsigned __DEVCFG3 __attribute__ ((section(".config3"))) = (cfg3) | DEVCFG3_UNUSED
 
+// PIC32MZ DA device config is just different enough to justify a separate macro
+#define PIC32MZDA_DEVCFG(cfg0, cfg1, cfg2, cfg3, cfg4) \
+    unsigned __DEVCFG0 __attribute__ ((section(".config0"))) = (cfg0) | MZDA_DEVCFG0_UNUSED; \
+    unsigned __DEVCFG1 __attribute__ ((section(".config1"))) = (cfg1) | MZDA_DEVCFG1_UNUSED; \
+    unsigned __DEVCFG2 __attribute__ ((section(".config2"))) = (cfg2) | MZDA_DEVCFG2_UNUSED; \
+    unsigned __DEVCFG3 __attribute__ ((section(".config3"))) = (cfg3) | MZDA_DEVCFG3_UNUSED; \
+    unsigned __DEVCFG4 __attribute__ ((section(".config4"))) = (cfg4) | MZDA_DEVCFG4_UNUSED
+
 /*
  * Config0 register at 1fc0ffcc, inverted.
  */
@@ -202,6 +210,67 @@
 #define DEVCFG3_PMDL1WAY        0x10000000 /* Peripheral Module Disable - only 1 reconfig */
 #define DEVCFG3_IOL1WAY         0x20000000 /* Peripheral Pin Select - only 1 reconfig */
 #define DEVCFG3_FUSBIDIO        0x40000000 /* USBID pin: controlled by USB */
+
+// PIC32MZ DA configuration bits follow
+// Config word 0
+#define	MZDA_DEVCFG0_UNUSED     0xb4000880
+#define MZDA_DEVCFG0_JTAGNORMAL 0x04000000 // normal JTAG functionality
+#define MZDA_DEVCFG0_JTAGREDUCED 0         // reduced JTAG functionality
+#define MZDA_DEVCFG0_POAGC      0x08000000 // primary oscillator gain control enabled
+#define MZDA_DEVCFG0_POAGC25    0x03000000 // primary oscillator AGC 25 ms settling time
+#define MZDA_DEVCFG0_POAGC625   0x02000000 // primary oscillator AGC 6.25 ms settling time
+#define MZDA_DEVCFG0_POAGC400   0x01000000 // primary oscillator AGC 400 ms settling time 
+#define MZDA_DEVCFG0_POAGC100   0          // primary oscillator AGC 100 ms settling time
+#define MZDA_DEVCFG0_POFG3      0x00C00000 // primary oscillator fine gain G3
+#define MZDA_DEVCFG0_POFG2      0x00800000 // primary oscillator fine gain G2
+#define MZDA_DEVCFG0_POFG1      0x00400000 // primary oscillator fine gain G1
+#define MZDA_DEVCFG0_POFG0      0          // primary oscillator fine gain G0
+#define MZDA_DEVCFG0_POBOOST    0x00200000 // primary oscillator boost
+#define MZDA_DEVCFG0_POCG3      0x00180000 // primary oscillator coarse gain G3
+#define MZDA_DEVCFG0_POCG2      0x00100000 // primary oscillator coarse gain G2
+#define MZDA_DEVCFG0_POCG1      0x00080000 // primary oscillator coarse gain G1
+#define MZDA_DEVCFG0_POCG0      0          // primary oscillator coarse gain G0
+#define MZDA_DEVCFG0_SOBOOST    0x00040000 // secondary oscillator boost
+#define MZDA_DEVCFG0_SOCG3      0x00030000 // secondary oscillator coarse gain G3
+#define MZDA_DEVCFG0_SOCG2      0x00020000 // secondary oscillator coarse gain G2
+#define MZDA_DEVCFG0_SOCG1      0x00010000 // secondary oscillator coarse gain G1
+#define MZDA_DEVCFG0_SOCG0      0          // secondary oscillator coarse gain G0
+#define MZDA_DEVCFG0_SMCLR      0x00008000 // MCLR generates normal reset
+#define MZDA_DEVCFG0_PMCLR      0          // MCLR generates POR
+#define MZDA_DEVCFG0_DBGPER2    0x00004000 // Allow CPU access to Permission Group 2 regions
+#define MZDA_DEVCFG0_DBGPER1    0x00002000 // Allow CPU access to Permission Group 1 regions
+#define MZDA_DEVCFG0_DBGPER0    0x00001000 // Allow CPU access to Permission Group 0 regions
+#define MZDA_DEVCFG0_FSLEEP     0x00000400 // flash powered down in sleep mode
+#define MZDA_DEVCFG0_CFSLEEP    0          // flash power down controlled by PWRCON.VREGS
+#define MZDA_DEVCFG0_EOFFWR     0x00000300 // ECC disabled, ECCCON<1:0> writable
+#define MZDA_DEVCFG0_EOFFLOCK   0x00000200 // ECC disabled, ECCCON<1:0> locked
+#define MZDA_DEVCFG0_DECCON     0x00000100 // ECC enabled, ECCCON<1:0> locked
+#define MZDA_DEVCFG0_MIPS32     0x00000040 // MIPS32 ISA at boot
+#define MZDA_DEVCFG0_TRCEN      0x00000020 // trace features enabled
+#define MZDA_DEVCFG0_ICESEL1    0x00000018 // PGED1 and PGEC1 selected
+#define MZDA_DEVCFG0_ICESEL2    0x00000010 // PGED2 and PGEC2 selected
+#define MZDA_DEVCFG0_ICESEL3    0x00000008 // PGED3 and PGEC3 selected
+#define MZDA_DEVCFG0_JTAGEN     0x00000004 // JTAG enabled
+#define MZDA_DEVCFG0_DOFFJON    0x00000003 // JTAG IF enabled, PGEDC disabled, ICD off
+#define MZDA_DEVCFG0_DONJON     0x00000002 // JTAG IF enabled, PGEDC disabled, ICD on
+#define MZDA_DEVCFG0_DOFFPON    0x00000001 // JTAG IF disabled, PGEDC enabled, ICD off
+#define MZDA_DEVCFG0_DONPON     0          // JTAG IF disabled, PGEDC enabled, ICD on
+
+// Config word 1
+#define MZDA_DEVCFG1_UNUSED     0x00003100
+#pragma message "TODO - finish MZDA config word 1"
+
+// Config word 2
+#define MZDA_DEVCFG2_UNUSED     0xa0008008
+#pragma message "TODO - finish MZDA config word 2"
+
+// Config word 3
+#define MZDA_DEVCFG3_UNUSED     0xc4f00000
+#pragma message "TODO - finish MZDA config word 3"
+
+// Config word 4
+#define MZDA_DEVCFG4_UNUSED     0xe0ffffff
+#pragma message "TODO - finish MZDA config word 4"
 
 /*--------------------------------------
  * Peripheral registers.
