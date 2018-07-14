@@ -1251,6 +1251,18 @@ static void setup_signals()
         LATJCLR = 1 << 9; TRISJCLR = 1 << 9;    /* set RJ9 as output for ETXD1 */
         LATDCLR = 1 << 6; TRISDCLR = 1 << 6;    /* set RD6 as output for ETXEN */
         break;
+		
+	case 0x05F4E053:            /* MZ2064DAG169 */
+    case 0x05F4F053:            /* MZ2064DAH169 */
+    case 0x05FBA053:            /* MZ2064DAG176 */
+    case 0x05FBB053:            /* MZ2064DAH176 */
+        /*
+         * Setup for MZ DA stacked DRAM devices.
+         */
+        LATDCLR = 1 << 6; TRISDCLR = 1 << 6;    /* set RD6 as output for ETXEN */
+        LATJCLR = 1 << 8; TRISJCLR = 1 << 8;    /* set RJ8 as output for ETXD0 */
+        LATJCLR = 1 << 9; TRISJCLR = 1 << 9;    /* set RJ9 as output for ETXD1 */
+        break;
 
     default:
         panic("en: DEVID not recognized\n");
