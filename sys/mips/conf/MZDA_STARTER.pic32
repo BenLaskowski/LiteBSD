@@ -62,6 +62,7 @@ device          uart2   pins RB0, RG9	# onboard MCP2221 port
 # Console options
 options         "CONS_MAJOR=17"         # UART device
 options         "CONS_MINOR=1"          # UART2
+options			"UART_BAUD=115200"
 
 controller      spi2    pins RD7, RG8   # SD card
 

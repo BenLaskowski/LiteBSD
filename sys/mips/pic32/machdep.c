@@ -168,7 +168,7 @@ PIC32MZDA_DEVCFG (
                                         // flash can sleep, ECC disabled, MIPS32,
                                         // TRC off, PGED/PGEC2, JTAG off, debug on
     
-    0b01011101011101000011111000111111, // DMT off, 2^31 DMT, 50% WDT window,
+    0b01011101011101000011111000111001, // DMT off, 2^31 DMT, 50% WDT window,
                                         // WDT off, WDT non-windowed, WDT stops
                                         // during flash programming, 2^20 WDT PS,
                                         // clock switching disabled, CLKO disabled,
@@ -189,7 +189,7 @@ PIC32MZDA_DEVCFG (
 #endif
 
 
-#if defined(MEBII) || defined(HMZ144) || defined(SNADPIC) || defined(EMZ64)
+#if defined(MEBII) || defined(HMZ144) || defined(SNADPIC) || defined(EMZ64) || defined(MZDA_STARTER)
 /*
  * Boot code at bfc00000.
  * Jump to Flash memory.
@@ -283,6 +283,21 @@ mach_init()
     LATBSET = 1 << 11;      /* set RB11 high for EPHY-RST# */
     TRISBCLR = 1 << 11;     /* set RB11 as output */
 #endif
+
+#if defined(MZDA_STARTER)
+	/* Microchip MZ DA starter board:  use UART2 for console
+	 * Map signals rx=RB0 (RPB0/AN0), tx=RG9 (RPG9/AN23. */
+	SYSKEY = 0xAA996655;	/* unlock sequence so we can remap pins */
+	SYSKEY = 0x556699AA;
+	CFGCON &= ~(1<<13);
+	ANSELBCLR = 1 << 0;		/* analog disable on RB0 and RG9 */
+	ANSELGCLR = 1 << 9;
+	U2RXR = 5;				/* U2RX on RPB0 */
+	RPG9R = 2;				/* U2TX on RPG9 */
+	CFGCON |= 1 << 13;		/* lock the config again */
+	SYSKEY = 0x33333333;
+#endif
+	 
 
     /*
      * Enable buttons.

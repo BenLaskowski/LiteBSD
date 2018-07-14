@@ -24,6 +24,10 @@
 #ifndef _IO_PIC32MZ_H
 #define _IO_PIC32MZ_H
 
+// delete this, it's just for testing until a console comes up
+#define LED_H_ON(x) ANSELHCLR = 1<<x; TRISHCLR = 1<<x; LATHSET = 1<<x;
+#define LED_H_OFF(x) LATHCLR = 1<<x;
+
 /*
  * Register memory map:
  *
@@ -257,7 +261,7 @@
 #define MZDA_DEVCFG0_DONPON     0          // JTAG IF disabled, PGEDC enabled, ICD on
 
 // Config word 1
-#define MZDA_DEVCFG1_UNUSED     0x00003100
+#define MZDA_DEVCFG1_UNUSED     0x00003800
 #pragma message "TODO - finish MZDA config word 1"
 
 // Config word 2
