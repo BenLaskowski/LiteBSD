@@ -62,14 +62,14 @@ device          uart2   pins RB0, RG9	# onboard MCP2221 port
 # Console options
 options         "CONS_MAJOR=17"         # UART device
 options         "CONS_MINOR=1"          # UART2
-options			"UART_BAUD=115200"
+options	        "UART_BAUD=115200"
 
 controller      spi2    pins RD7, RG8   # SD card
 
 disk            sd0     at spi2 pin RA9
 signal          "SD_LED"        pin RH0 # use LED1 as SD activity
-signal		"LED2"		pin RH1
-signal		"LED3"		pin RH2
+signal          "LED2"          pin RH1
+signal          "LED3"          pin RH2
 
 # General purpose I/O ports
 # TODO: exclude uart, spi and ethernet pins
@@ -91,7 +91,7 @@ options         "ETHERNET_PHY_ADDR=0"   # PHY address is 0 on LAN8720A and LAN87
 # Buttons
 signal          "BUTTON1"   pin RB13 invert     # SW1, active low
 signal          "BUTTON2"   pin RB12 invert     # SW2, active low
-signal		"BUTTON3"   pin RB14 invert	# SW3, active low
+signal          "BUTTON3"   pin RB14 invert	# SW3, active low
 
 pseudo-device   pty             4       # pseudo ptys
 #pseudo-device   sl              1       # serial line IP interfaces (SLIP)

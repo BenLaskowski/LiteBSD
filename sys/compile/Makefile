@@ -8,7 +8,7 @@ BOARD_LIST      = WIFIRE.pic32\
                   EMZ64.pic32\
                   Whitecat.pic32\
                   SNADPIC.pic32\
-		  MZDA_STARTER.pic32
+                  MZDA_STARTER.pic32
 
 all:            ../../usr.sbin/config/config
 		for b in $(BOARD_LIST); do $(MAKE) kernel BOARD=$$b; done

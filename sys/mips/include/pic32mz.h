@@ -217,7 +217,7 @@
 
 // PIC32MZ DA configuration bits follow
 // Config word 0
-#define	MZDA_DEVCFG0_UNUSED     0xb4000880
+#define MZDA_DEVCFG0_UNUSED     0xb4000880
 #define MZDA_DEVCFG0_JTAGNORMAL 0x04000000 // normal JTAG functionality
 #define MZDA_DEVCFG0_JTAGREDUCED 0         // reduced JTAG functionality
 #define MZDA_DEVCFG0_POAGC      0x08000000 // primary oscillator gain control enabled

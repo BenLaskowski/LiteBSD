@@ -295,9 +295,9 @@ mach_init()
 	U2RXR = 5;              /* U2RX on RPB0 */
 	RPG9R = 2;              /* U2TX on RPG9 */
     
-    /* set up SPI port here too - is this done elsewhere? */
-    SDI2R = 14;             /* SDI2 on RPD7 */
-    RPG8R = 6;              /* SDO2 on RPG8 */
+        /* set up SPI port here too - is this done elsewhere? */
+        SDI2R = 14;             /* SDI2 on RPD7 */
+        RPG8R = 6;              /* SDO2 on RPG8 */
 	CFGCON |= 1 << 13;		/* lock the config again */
 	SYSKEY = 0x33333333;
 #endif

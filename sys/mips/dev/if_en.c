@@ -1252,7 +1252,7 @@ static void setup_signals()
         LATDCLR = 1 << 6; TRISDCLR = 1 << 6;    /* set RD6 as output for ETXEN */
         break;
 		
-	case 0x05F4E053:            /* MZ2064DAG169 */
+    case 0x05F4E053:            /* MZ2064DAG169 */
     case 0x05F4F053:            /* MZ2064DAH169 */
     case 0x05FBA053:            /* MZ2064DAG176 */
     case 0x05FBB053:            /* MZ2064DAH176 */
