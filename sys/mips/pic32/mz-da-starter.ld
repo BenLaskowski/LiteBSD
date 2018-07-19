@@ -16,6 +16,9 @@ MEMORY
   kseg0_boot_mem    (rx)    : ORIGIN = 0x9FC00000, LENGTH = 64K-64
   kseg1_boot_mem    (rx)    : ORIGIN = 0xBFC00000, LENGTH = 0
   kseg1_data_mem    (rw!x)  : ORIGIN = 0xA0000000, LENGTH = 640K
+
+  /* Add internal DDR2 DRAM to linker map */
+  kseg1_ddr_mem	    (rw!x)  : ORIGIN = 0xA8000000, LENGTH = 32768K
 }
 
 _eram = ORIGIN(kseg1_data_mem) + LENGTH(kseg1_data_mem);
@@ -125,6 +128,12 @@ SECTIONS
   } > kseg1_data_mem
   __bss_end = . ;
   _end = .;
+
+  /* DDR variables */
+  .ddr_region   (NOLOAD): 
+  {
+    *(.ddr)
+  } > kseg1_ddr_mem
 
   /* Stabs debugging sections.  */
   .stab          0 : { *(.stab) }

@@ -53,7 +53,7 @@ options         INET            # Internet protocols
 #options        MROUTING        # Multicast routing support
 
 config          vmunix  root on sd0a
-                        swap on sd0b
+                        swap on ddr0a
 
 device          uart2   pins RB0, RG9	# onboard MCP2221 port
 # Uncomment this to increase the size of the UART buffers
@@ -67,8 +67,11 @@ options	        "UART_BAUD=115200"
 controller      spi2    pins RD7, RG8   # SD card
 
 disk            sd0     at spi2 pin RA9
+
+device          ddr0            # internal DDR2, used for swap space
+
 signal          "SD_LED"        pin RH0 # use LED1 as SD activity
-signal          "LED2"          pin RH1
+signal          "DDR_LED"       pin RH1 # use LED2 as DDR2 activity
 signal          "LED3"          pin RH2
 
 # General purpose I/O ports
