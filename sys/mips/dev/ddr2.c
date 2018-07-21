@@ -278,8 +278,8 @@ ddr_phy_init()
     DDRPHYPADCON |= 1 << 9;
     DDRPHYPADCON |= 1 << 28;
     DDRPHYPADCON |= 2 << 29;
-	DDRPHYPADCON |= 1 << 14;
-	DDRPHYPADCON |= 1 << 13;
+    DDRPHYPADCON |= 1 << 14;
+    DDRPHYPADCON |= 1 << 13;
     DDRPHYDLLR |= 16 << 8;
     DDRPHYDLLR &= ~(1 << 26);
     DDRPHYDLLR |= 3 << 28;
@@ -315,16 +315,16 @@ ddr_init()
     
     // addressing - rows
     DDRMEMCFG0 |= ROW_ADDR_RSHIFT;
-	DDRMEMCFG1 = ROW_ADDR_MASK;
+    DDRMEMCFG1 = ROW_ADDR_MASK;
     
     // addressing - columns
     DDRMEMCFG0 |= COL_HI_RSHFT << 24;
-	DDRMEMCFG3 = COL_LO_MASK;
-	DDRMEMCFG2 = COL_HI_MASK;
+    DDRMEMCFG3 = COL_LO_MASK;
+    DDRMEMCFG2 = COL_HI_MASK;
     
     // addressing - banks
     DDRMEMCFG0 |= BA_RSHFT << 8;
-	DDRMEMCFG4 |= BANK_ADDR_MASK;
+    DDRMEMCFG4 |= BANK_ADDR_MASK;
     
     // addressing - chip selects
     DDRMEMCFG0 |= CS_ADDR_RSHIFT << 16;
@@ -449,8 +449,8 @@ ddr_init()
     DDRCMD111 = (DRV_DDR_LOAD_MODE_CMD | (0x40 << 24));
     DDRCMD211 = (0x00 | (0x01 << 8) | (sys_mem_ddr_hc_clk_dly(140 * 2500) << 11));
 
-	// Set number of host commands
-	DDRCMDISSUE = (DDRCMDISSUE & ~(0x0F)) | 0x1B;
+    // Set number of host commands
+    DDRCMDISSUE = (DDRCMDISSUE & ~(0x0F)) | 0x1B;
 	
     DDRCMDISSUE |= 1 << 4;
     DDRMEMCON |= 1;
