@@ -67,12 +67,13 @@ options	        "UART_BAUD=115200"
 controller      spi2    pins RD7, RG8   # SD card
 
 disk            sd0     at spi2 pin RA9
+options			"SD_KHZ=25000"
 
 device          ddr0            # internal DDR2, used for swap space
 
 signal          "SD_LED"        pin RH0 # use LED1 as SD activity
-signal          "DDR_LED"       pin RH1 # use LED2 as DDR2 activity
-signal          "LED3"          pin RH2
+signal          "DDR_LED"       pin RH2 # use LED2 as DDR2 activity
+signal          "LED3"          pin RH1
 
 # General purpose I/O ports
 # TODO: exclude uart, spi and ethernet pins

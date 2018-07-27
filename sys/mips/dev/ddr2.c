@@ -466,6 +466,30 @@ ddr_phy_calib()
     while ((DDRSCLSTART & 3) != 3);
 }
 
+// Function that can initialize DDR elsewhere
+// If this is called, we don't re-initialize later
+void ddr_initialize()
+{
+    static int initialized = 0;
+    
+    if (initialized != 0)
+    {
+        printf("ddr0:  already initialized\n");
+        return;
+    }
+    
+    printf("ddr0:  initializing ... ");
+    ddr_clock_init();
+    ddr_pmd_init();
+    ddr_phy_init();
+    ddr_init();
+    ddr_phy_calib();
+    printf("done\n");
+    
+    initialized = 1;    
+    return;
+}
+
 /*
  * Test to see if device is present.
  * Return true if found and initialized ok.
@@ -480,11 +504,7 @@ ddrprobe(config)
 
     // initialize DDR2 controller
     int x = splhigh();
-    ddr_clock_init();
-    ddr_pmd_init();
-    ddr_phy_init();
-    ddr_init();
-    ddr_phy_calib();
+    ddr_initialize();
     splx(x);
 
     printf("ddr0:  %u kbytes swap space\n", DDR_SIZE_KB);

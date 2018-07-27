@@ -186,6 +186,8 @@ PIC32MZDA_DEVCFG (
                                         // 0xFFFF user ID
 
     0b11110100111111111111111111111111);// 2^20 WDT PS in sleep mode
+    
+extern void ddr_initialize();
 #endif
 
 
@@ -285,21 +287,25 @@ mach_init()
 #endif
 
 #if defined(MZDA_STARTER)
-	/* Microchip MZ DA starter board:  use UART2 for console
-	 * Map signals rx=RB0 (RPB0/AN0), tx=RG9 (RPG9/AN23. */
-	SYSKEY = 0xAA996655;    /* unlock sequence so we can remap pins */
-	SYSKEY = 0x556699AA;
-	CFGCON &= ~(1<<13);
-	ANSELBCLR = 1 << 0;     /* analog disable on RB0 and RG9 */
-	ANSELGCLR = 1 << 9;
-	U2RXR = 5;              /* U2RX on RPB0 */
-	RPG9R = 2;              /* U2TX on RPG9 */
+    /* Microchip MZ DA starter board:  use UART2 for console
+     * Map signals rx=RB0 (RPB0/AN0), tx=RG9 (RPG9/AN23. */
+    SYSKEY = 0xAA996655;    /* unlock sequence so we can remap pins */
+    SYSKEY = 0x556699AA;
+    CFGCON &= ~(1<<13);
+    ANSELBCLR = 1 << 0;     /* analog disable on RB0 and RG9 */
+    ANSELGCLR = 1 << 9;
+    U2RXR = 5;              /* U2RX on RPB0 */
+    RPG9R = 2;              /* U2TX on RPG9 */
     
-        /* set up SPI port here too - is this done elsewhere? */
-        SDI2R = 14;             /* SDI2 on RPD7 */
-        RPG8R = 6;              /* SDO2 on RPG8 */
-	CFGCON |= 1 << 13;		/* lock the config again */
-	SYSKEY = 0x33333333;
+    /* set up SPI port here too - is this done elsewhere? */
+    SDI2R = 14;             /* SDI2 on RPD7 */
+    RPG8R = 6;              /* SDO2 on RPG8 */
+    CFGCON |= 1 << 13;		/* lock the config again */
+    SYSKEY = 0x33333333;
+    
+    /* initialize DDR well ahead of time
+     * if we don't do it here, it'll be done in swap device init */
+    ddr_initialize(); 
 #endif
 	 
 
@@ -435,7 +441,6 @@ mach_init()
      */
 #ifdef MZDA_STARTER
     // MZ DA family we are interested in all have 640 kB RAM
-    #pragma message "Using 640 kB memory since MZDA_STARTER is defined"
     physmem = btoc(640 * 1024);
 #else
     // all other (?) PIC32MZs have 512 kB
