@@ -66,8 +66,11 @@ options	        "UART_BAUD=115200"
 
 controller      spi2    pins RD7, RG8   # SD card
 
-disk            sd0     at spi2 pin RA9
-options			"SD_KHZ=25000"
+#disk            sd0     at spi2 pin RA9
+#options	"SD_KHZ=25000"
+
+disk            sdhc0           # SD card on SDHC peripheral
+options         "SDHC_KHZ=25000"
 
 device          ddr0            # internal DDR2, used for swap space
 

@@ -93,17 +93,20 @@ bdev_decl(no);  /* dummy declarations */
 #include "sd.h"
 #include "vn.h"
 #include "ddr.h"
+#include "sdhc.h"
 
 bdev_decl(sd);
 bdev_decl(vn);
 bdev_decl(ddr);
+bdev_decl(sdhc);
 
 struct bdevsw   bdevsw[] =
 {
-    bdev_disk_init(NSD,sd), /* 0: SD flash card */
-    bdev_swap_init(),       /* 1: swap pseudo-device */
-    bdev_disk_init(NVN,vn), /* 2: vnode disk driver (swap to files) */
-    bdev_disk_init(NDDR,ddr)/* 3: ddr disk driver */
+    bdev_disk_init(NSD,sd),     /* 0: SD flash card */
+    bdev_swap_init(),           /* 1: swap pseudo-device */
+    bdev_disk_init(NVN,vn),     /* 2: vnode disk driver (swap to files) */
+    bdev_disk_init(NDDR,ddr),   /* 3: ddr disk driver */
+    bdev_disk_init(NSDHC,sdhc)  /* 4: SD card on SDHC peripheral */
 };
 
 int     nblkdev = sizeof (bdevsw) / sizeof (bdevsw[0]);

@@ -3,7 +3,7 @@
 #include <machine/pic32mz.h>
  
 // general format:
-// #define REG_NAME PIC32_DDR(lowest 4 nibbles of address)
+// #define REG_NAME PIC32_DDR(lowest 5 nibbles of address)
  
 #define CFGMPLL         PIC32_R(0x00100)
 #define DDRCMD10        PIC32_R(0xE8080)
