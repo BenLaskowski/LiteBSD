@@ -248,6 +248,8 @@ static int card_cmd(unsigned int unit, unsigned int cmd, unsigned int arg, unsig
     // send the command!
     SDHCMODE = shadow;
 
+    printf("sdhc:  SDHCMODE = %x, SDHCBLKCON = %x, SDHCARG = %x\n", shadow, SDHCBLKCON, SDHCARG);
+
     // wait for command complete or timeout
     while (!(SDHCINTSTAT & (1 || 1 << 16 || 1 << 20)));
 
@@ -307,6 +309,8 @@ static void sdhc_set_speed(unsigned int speed)
     // enable SD clock
     SDHCCON2 |= 4;
     
+    printf("sdhc:  done waiting for clock\n");
+
     // done!
     return;
 }    
@@ -696,6 +700,10 @@ static int
 sdhc_setup(struct disk *u)
 {
     int unit = u->unit;
+
+    // enable REFCLK4 which SDHC uses
+    REFO4CON = 0;               // module off, no divisor
+    REFO4CON |= 1 << 15;        // enable module
 
     if (! card_init(unit)) {
         printf("sd%d: no SD card detected\n", unit);
