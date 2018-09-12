@@ -209,8 +209,8 @@ static int card_cmd(unsigned int unit, unsigned int cmd, unsigned int arg, unsig
     if (cmd != CMD_SEND_CSD && cmd != CMD_SEND_CID && cmd != CMD_SEND_OP_SDC)
         shadow |= 1 << 20;
 
-    // don't check CRC for ACMD41
-    if (cmd != CMD_SEND_OP_SDC)
+    // don't check CRC for CMD9, CMD10, or ACMD41
+    if (cmd != CMD_SEND_CSD && cmd != CMD_SEND_CID && cmd != CMD_SEND_OP_SDC)
         shadow |= 1 << 19;
 
     // response types
@@ -243,21 +243,35 @@ static int card_cmd(unsigned int unit, unsigned int cmd, unsigned int arg, unsig
         shadow |= 1 << 1;
     }
 
+    // clear interrupt flags by setting them (?!)
+    // then enable all the interrupts we need to check
+    SDHCINTSTAT |= (1 | 1 << 16 | 1 << 20);
+    SDHCINTEN   |= (1 | 1 << 16 | 1 << 20); 
+
+
     // use PIO transfers for now, maybe try DMA later
     
     // send the command!
     SDHCMODE = shadow;
 
-    printf("sdhc:  SDHCMODE = %x, SDHCBLKCON = %x, SDHCARG = %x\n", shadow, SDHCBLKCON, SDHCARG);
+    //printf("sdhc:  SDHCMODE = %x, SDHCBLKCON = %x, SDHCARG = %x, SDHCINTSTAT = %x\n", 
+    //    shadow, SDHCBLKCON, SDHCARG, SDHCINTSTAT);
 
     // wait for command complete or timeout
-    while (!(SDHCINTSTAT & (1 || 1 << 16 || 1 << 20)));
+    while (!(SDHCINTSTAT & (1 | (1 << 16) | (1 << 20))));
+
+    // debugging statements
+    //if (SDHCINTSTAT & ((1 << 16) | (1 << 20)))
+    //    printf("sdhc:  timeout, SDHCINTSTAT = %x\n", SDHCINTSTAT);
+    //else
+    //    printf("sdhc:  success\n");
 
     // timeout
-    if (SDHCINTSTAT & (1 << 16 || 1 << 20))
+    if (SDHCINTSTAT & ((1 << 16) | (1 << 20)))
         return 1;
     
     // done!  let the caller parse the response registers
+    printf("sdhc:  cmd %u success, SDHCRESP0 = %x\n", cmd, SDHCRESP0);
     return 0;
 }
 
@@ -290,10 +304,10 @@ static void sdhc_set_speed(unsigned int speed)
 
     // we only have a few dividers to choose from, so pick the smallest
     // that gives an SD clock less than or equal to the target.
-    for (divisor = 1; divisor <= 256; divisor <<= 1)
+    for (divisor = 1; divisor < 256; divisor <<= 1)
         if (base_clk / divisor <= speed) break;
 
-    printf("sdhc:  using clock divisor of %u\n", divisor);
+    printf("sdhc:  using clock divisor of %u to obtain %d kHz\n", divisor, speed);
     divisor = (divisor >> 1) & 0xFF;
     
     // disable SDHC clocks
@@ -355,8 +369,7 @@ static int card_init(int unit)
         u->card_type = TYPE_SD_II;
     else
     {
-        printf("sd%d: cannot detect card type, response=%08x\n",
-                unit, SDHCRESP0);
+        printf("sdhc:  cannot detect card type, response=%x\n", SDHCRESP0);
         sdhc_led(0);
         return 0;
     }
@@ -367,7 +380,7 @@ static int card_init(int unit)
     {
         card_cmd(unit, CMD_APP, 0, 0);
         reply = card_cmd(unit, CMD_SEND_OP_SDC,
-                         (u->card_type == TYPE_SD_II) ? 0x40000000 : 0, 0);
+                         (u->card_type == TYPE_SD_II) ? 0x40FF8000 : 0xFF8000, 0);
         if (reply == 0 && (SDHCRESP0 & 1 << 31))
             break;
         if (i >= TIMO_SEND_OP)
@@ -526,8 +539,7 @@ static void card_high_speed(int unit)
     reply = card_cmd(unit, CMD_SWITCH_FUNC, 0x80000001, 0);
     if (reply != 0) {
         /* Command timed out. */
-        printf("sd%d: card_size: SWITCH_FUNC timed out, reply = %d\n",
-                unit, reply);
+        printf("sdhc:  card_size: SWITCH_FUNC timed out, reply = %d\n", reply);
         sdhc_led(0);
         return;
     }
@@ -547,7 +559,7 @@ static void card_high_speed(int unit)
         card_read_csd(unit);
         switch (u->csd[3]) {
         default:
-            printf("sd%d: Unknown speed csd[3] = %02x\n", unit, u->csd[3]);
+            printf("sdhc:  Unknown speed csd[3] = %02x\n", u->csd[3]);
             /* fall through... */
         case TRANS_SPEED_25MHZ:
             /* 25 MHz - default clock for high speed mode. */
@@ -558,11 +570,11 @@ static void card_high_speed(int unit)
             khz = SDHC_FASTEST_KHZ;
             break;
         case TRANS_SPEED_100MHZ:
-            printf("sd%d: fast clock 100MHz\n", unit);
+            printf("sdhc:  fast clock 100MHz\n");
             khz = SDHC_FASTEST_KHZ;
             break;
         case TRANS_SPEED_200MHZ:
-            printf("sd%d: fast clock 200MHz\n", unit);
+            printf("sdhc:  fast clock 200MHz\n");
             khz = SDHC_FASTEST_KHZ;
             break;
         }
@@ -578,7 +590,7 @@ static void card_high_speed(int unit)
     u->group[4] = status[4] << 8 | status[5];
     u->group[5] = status[2] << 8 | status[3];
 
-    printf("sd%d: function groups %x/%x/%x/%x/%x/%x", unit,
+    printf("sdhc:  function groups %x/%x/%x/%x/%x/%x",
         u->group[5] & 0x7fff, u->group[4] & 0x7fff,
         u->group[3] & 0x7fff, u->group[2] & 0x7fff,
         u->group[1] & 0x7fff, u->group[0] & 0x7fff);
@@ -616,8 +628,7 @@ card_read(int unit, unsigned int offset, char *data, unsigned int bcount)
     if (reply != 0)
     {
         /* Command timed out. */
-        printf("sd%d: card_read: READ_MULTIPLE timed out, reply = %d\n",
-               unit, reply);
+        printf("sdhc:  card_read: READ_MULTIPLE timed out, reply = %d\n", reply);
         sdhc_led(0);
         return 0;
     }
@@ -653,8 +664,8 @@ card_write(int unit, unsigned offset, char *data, unsigned bcount)
     {
         /* Command rejected. */
         sdhc_led(0);
-        printf("sd%d: card_write: bad SET_WBECNT reply = %02x, count = %u\n",
-            unit, reply, (bcount + SECTSIZE - 1) / SECTSIZE);
+        printf("sdhc:  card_write: bad SET_WBECNT reply = %02x, count = %u\n",
+            reply, (bcount + SECTSIZE - 1) / SECTSIZE);
         return 0;
     }
 
@@ -674,7 +685,7 @@ card_write(int unit, unsigned offset, char *data, unsigned bcount)
     {
         /* Command rejected. */
         sdhc_led(0);
-        printf("sd%d: card_write: bad WRITE_MULTIPLE reply = %02x\n", unit, reply);
+        printf("sdhc:  card_write: bad WRITE_MULTIPLE reply = %02x\n", reply);
         return 0;
     }
 
@@ -705,8 +716,15 @@ sdhc_setup(struct disk *u)
     REFO4CON = 0;               // module off, no divisor
     REFO4CON |= 1 << 15;        // enable module
 
+    // software reset the SD card
+    //SDHCCON2 |= 1 << 24;
+    //while (SDHCCON2 & 1 << 24);
+
+    // power on the SD module
+    SDHCCON1 |= 1 << 8;
+
     if (! card_init(unit)) {
-        printf("sd%d: no SD card detected\n", unit);
+        printf("sdhc:  no SD card detected\n");
         return 0;
     }
     /* Get the size of raw partition. */
@@ -714,7 +732,7 @@ sdhc_setup(struct disk *u)
     u->part[RAWPART].dp_offset = 0;
     u->part[RAWPART].dp_size = card_size(unit);
     if (u->part[RAWPART].dp_size == 0) {
-        printf("sd%d: cannot get card size\n", unit);
+        printf("sdhc:  cannot get card size\n");
         return 0;
     }
 
@@ -724,7 +742,7 @@ sdhc_setup(struct disk *u)
          * SPI interface of pic32 allows up to 25MHz clock rate. */
         card_high_speed(unit);
     }
-    printf("sd%d: type %s, size %u kbytes, speed %u Mbit/sec\n", unit,
+    printf("sdhc:  type %s, size %u kbytes, speed %u Mbit/sec\n",
         u->card_type==TYPE_SDHC ? "SDHC" :
         u->card_type==TYPE_SD_II ? "II" : "I",
         u->part[RAWPART].dp_size / 2,
@@ -735,7 +753,7 @@ sdhc_setup(struct disk *u)
     int s = splbio();
     if (! card_read(unit, 0, (char*)buf, sizeof(buf))) {
         splx(s);
-        printf("sd%d: cannot read partition table\n", unit);
+        printf("sdhc:  cannot read partition table\n");
         return 0;
     }
     splx(s);
@@ -745,8 +763,8 @@ sdhc_setup(struct disk *u)
         int i;
         for (i=1; i<=NPARTITIONS; i++) {
             if (u->part[i].dp_type != 0)
-                printf("sd%d%c: partition type %02x, sector %u, size %u kbytes\n",
-                    unit, i+'a'-1, u->part[i].dp_type,
+                printf("sdhc%c:  partition type %02x, sector %u, size %u kbytes\n",
+                    i+'a'-1, u->part[i].dp_type,
                     u->part[i].dp_offset,
                     u->part[i].dp_size / 2);
         }
