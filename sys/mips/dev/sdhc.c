@@ -89,6 +89,7 @@ struct disk {
     u_int   bopenpart;      /* block units open on this drive */
     u_int   openpart;       /* all units open on this drive */
     u_int   ocr;            /* operation condition register */
+    u_int   rca;            /* relative card address */
     u_char  csd[16];        /* card-specific data */
 #define TRANS_SPEED_25MHZ   0x32
 #define TRANS_SPEED_50MHZ   0x5a
@@ -101,15 +102,15 @@ struct disk {
 
 static struct disk sdhcdrives[NSDHC];       /* Table of units */
 
-#define TIMO_WAIT_WDONE 400000
-#define TIMO_WAIT_WIDLE 399000
-#define TIMO_WAIT_CMD   100000
-#define TIMO_WAIT_WDATA 30000
-#define TIMO_READ       90000
-#define TIMO_SEND_OP    8000
-#define TIMO_CMD        7000
-#define TIMO_SEND_CSD   6000
-#define TIMO_WAIT_WSTOP 5000
+#define TIMO_WAIT_WDONE 50
+#define TIMO_WAIT_WIDLE 50
+#define TIMO_WAIT_CMD   50
+#define TIMO_WAIT_WDATA 50
+#define TIMO_READ       50
+#define TIMO_SEND_OP    50
+#define TIMO_CMD        50
+#define TIMO_SEND_CSD   50
+#define TIMO_WAIT_WSTOP 50
 
 int sd_timo_cmd;                /* Max timeouts, for sysctl */
 int sd_timo_send_op;
@@ -126,6 +127,8 @@ int sd_timo_wait_widle;
  */
 #define CMD_GO_IDLE             0       /* CMD0 */
 #define CMD_SEND_OP_MMC         1       /* CMD1 (MMC) */
+#define CMD_ALL_SEND_CID        2
+#define CMD_SEND_REL_ADDR       3
 #define CMD_SWITCH_FUNC         6
 #define CMD_SEND_IF_COND        8
 #define CMD_SEND_CSD            9
@@ -179,7 +182,10 @@ static int card_cmd(unsigned int unit, unsigned int cmd, unsigned int arg, unsig
     {
         sdhc_wait_ready(TIMO_WAIT_CMD, &sd_timo_wait_cmd);
         if (sd_timo_wait_cmd == TIMO_WAIT_CMD)
+        {
+            printf("sdhc:  card not ready\n");
             return 1;
+        }
     }
 
     // set command argument
@@ -205,24 +211,24 @@ static int card_cmd(unsigned int unit, unsigned int cmd, unsigned int arg, unsig
         cmd == CMD_WRITE_SINGLE || cmd == CMD_WRITE_MULTIPLE)
         shadow |= 1 << 21;
 
-    // don't check command index for CMD9, CMD10, ACMD41
-    if (cmd != CMD_SEND_CSD && cmd != CMD_SEND_CID && cmd != CMD_SEND_OP_SDC)
+    // don't check command index for CMD2, CMD9, CMD10, ACMD41
+    if (cmd != CMD_ALL_SEND_CID && cmd != CMD_SEND_CSD && cmd != CMD_SEND_CID && cmd != CMD_SEND_OP_SDC)
         shadow |= 1 << 20;
 
-    // don't check CRC for CMD9, CMD10, or ACMD41
-    if (cmd != CMD_SEND_CSD && cmd != CMD_SEND_CID && cmd != CMD_SEND_OP_SDC)
+    // don't check CRC for CMD9 or ACMD41
+    if (/*cmd != CMD_SEND_CSD &&*/ cmd != CMD_SEND_OP_SDC)
         shadow |= 1 << 19;
 
     // response types
     // no response:  CMD0
-    // 48-bit response without busy (R1, R3, R6, R7):  ACMD6, CMD8, CMD13, CMD16, CMD17, CMD18, AMCD23, CMD24, CMD25, ACMD41, CMD55
+    // 48-bit response without busy (R1, R3, R6, R7):  CMD3, ACMD6, CMD8, CMD13, CMD16, CMD17, CMD18, AMCD23, CMD24, CMD25, ACMD41, CMD55
     // 48-bit response with busy (R1b):  CMD12
-    // 136-bit response (R2):  CMD9, CMD10
+    // 136-bit response (R2):  CMD2, CMD9, CMD10
     if (cmd == CMD_GO_IDLE)
         shadow |= 0 << 16;
     else if (cmd == CMD_STOP)
         shadow |= 3 << 16;
-    else if (cmd == CMD_SEND_CSD || cmd == CMD_SEND_CID)
+    else if (cmd == CMD_ALL_SEND_CID || cmd == CMD_SEND_CSD || cmd == CMD_SEND_CID)
         shadow |= 1 << 16;
     else
         shadow |= 2 << 16;
@@ -245,8 +251,9 @@ static int card_cmd(unsigned int unit, unsigned int cmd, unsigned int arg, unsig
 
     // clear interrupt flags by setting them (?!)
     // then enable all the interrupts we need to check
-    SDHCINTSTAT |= (1 | 1 << 16 | 1 << 20);
-    SDHCINTEN   |= (1 | 1 << 16 | 1 << 20); 
+    unsigned mask = 1 | (2047 << 15);
+    SDHCINTSTAT |= mask;
+    SDHCINTEN   |= mask; 
 
 
     // use PIO transfers for now, maybe try DMA later
@@ -258,7 +265,7 @@ static int card_cmd(unsigned int unit, unsigned int cmd, unsigned int arg, unsig
     //    shadow, SDHCBLKCON, SDHCARG, SDHCINTSTAT);
 
     // wait for command complete or timeout
-    while (!(SDHCINTSTAT & (1 | (1 << 16) | (1 << 20))));
+    while (!(SDHCINTSTAT & mask));
 
     // debugging statements
     //if (SDHCINTSTAT & ((1 << 16) | (1 << 20)))
@@ -267,11 +274,11 @@ static int card_cmd(unsigned int unit, unsigned int cmd, unsigned int arg, unsig
     //    printf("sdhc:  success\n");
 
     // timeout
-    if (SDHCINTSTAT & ((1 << 16) | (1 << 20)))
+    if (SDHCINTSTAT & 0x03FF0000)
         return 1;
     
     // done!  let the caller parse the response registers
-    printf("sdhc:  cmd %u success, SDHCRESP0 = %x\n", cmd, SDHCRESP0);
+    //printf("sdhc:  cmd %u success, SDHCRESP0 = %x\n", cmd, SDHCRESP0);
     return 0;
 }
 
@@ -401,6 +408,25 @@ static int card_init(int unit)
             u->card_type = TYPE_SDHC;
     }
 
+    // use CMD_ALL_SEND_CID to bump card to init state
+    reply = card_cmd(unit, CMD_ALL_SEND_CID, 0, 0);
+    if (reply != 0)
+    {
+        printf("sdhc:  CMD_ALL_SEND_CID failed, INTSTAT = %x\n", SDHCINTSTAT);
+        sdhc_led(0);
+        return 0;
+    }
+
+    // use CMD_SEND_RELATIVE_ADDRESS to get card address and finish initialization
+    reply = card_cmd(unit, CMD_SEND_REL_ADDR, 0, 0);
+    if (reply != 0)
+    {
+        printf("sdhc:  CMD_SEND_RELATIVE_ADDRESS failed, INTSTAT = %x\n", SDHCINTSTAT);
+        sdhc_led(0);
+        return 0;
+    }
+    u->rca = SDHCRESP0 & 0xFFFF0000;
+
     // switch to fast speed
     sdhc_set_speed(SDHC_KHZ);
     return 1;
@@ -415,11 +441,18 @@ static int card_read_csd(int unit)
     int reply;
 
     sdhc_led(1);
-    reply = card_cmd(unit, CMD_SEND_CSD, 0, 0);
-    if (reply != 0) {
-        /* Command timed out. */
-        printf("sdhc:  card_size:  SEND_CSD timed out, reply = %d\n",
-                reply);
+
+    reply = card_cmd(unit, CMD_SEND_CSD, u->rca, 0);        
+    printf( "sdhc:  SEND_CSD:  RESP0 = %8x\n"
+            "                  RESP1 = %8x\n"
+            "                  RESP2 = %8x\n"
+            "                  RESP3 = %8x\n"
+            "                INTSTAT = %8x\n",
+        SDHCRESP0, SDHCRESP1, SDHCRESP2, SDHCRESP3, SDHCINTSTAT);
+    if (reply != 0)
+    {
+        printf("sdhc:  CMD_SEND_CSD failed\n");
+        sdhc_led(0);
         return 0;
     }
 
