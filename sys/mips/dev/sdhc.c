@@ -53,10 +53,10 @@
 #define SDHC_KHZ          12500       /* speed 12.5 MHz */
 #endif
 #ifndef SDHC_FAST_KHZ
-#define SDHC_FAST_KHZ     50000       /* up to 50 Mhz is allowed by the spec */
+#define SDHC_FAST_KHZ     25000       /* up to 25 Mhz is allowed by the spec */
 #endif
 #ifndef SDHC_FASTEST_KHZ
-#define SDHC_FASTEST_KHZ  100000      /* max speed for pic32mz SDHC is 100 MHz */
+#define SDHC_FASTEST_KHZ  50000      /* max speed for pic32mz SDHC is 50 MHz */
 #endif
 
 #if DEV_BSIZE != 512
@@ -130,6 +130,7 @@ int sd_timo_wait_widle;
 #define CMD_ALL_SEND_CID        2
 #define CMD_SEND_REL_ADDR       3
 #define CMD_SWITCH_FUNC         6
+#define CMD_SELECT_CARD         7
 #define CMD_SEND_IF_COND        8
 #define CMD_SEND_CSD            9
 #define CMD_SEND_CID            10
@@ -206,8 +207,9 @@ static int card_cmd(unsigned int unit, unsigned int cmd, unsigned int arg, unsig
     if (cmd == CMD_STOP)
         shadow |= 3 << 22;
 
-    // data present for read/write single/multiple commands
-    if (cmd == CMD_READ_SINGLE || cmd == CMD_READ_MULTIPLE ||
+    // data present for read/write single/multiple commands and CMD6
+    if (cmd == CMD_SWITCH_FUNC ||
+        cmd == CMD_READ_SINGLE || cmd == CMD_READ_MULTIPLE ||
         cmd == CMD_WRITE_SINGLE || cmd == CMD_WRITE_MULTIPLE)
         shadow |= 1 << 21;
 
@@ -222,11 +224,11 @@ static int card_cmd(unsigned int unit, unsigned int cmd, unsigned int arg, unsig
     // response types
     // no response:  CMD0
     // 48-bit response without busy (R1, R3, R6, R7):  CMD3, ACMD6, CMD8, CMD13, CMD16, CMD17, CMD18, AMCD23, CMD24, CMD25, ACMD41, CMD55
-    // 48-bit response with busy (R1b):  CMD12
+    // 48-bit response with busy (R1b):  CMD7, CMD12
     // 136-bit response (R2):  CMD2, CMD9, CMD10
     if (cmd == CMD_GO_IDLE)
         shadow |= 0 << 16;
-    else if (cmd == CMD_STOP)
+    else if (cmd == CMD_SELECT_CARD || cmd == CMD_STOP)
         shadow |= 3 << 16;
     else if (cmd == CMD_ALL_SEND_CID || cmd == CMD_SEND_CSD || cmd == CMD_SEND_CID)
         shadow |= 1 << 16;
@@ -251,7 +253,7 @@ static int card_cmd(unsigned int unit, unsigned int cmd, unsigned int arg, unsig
 
     // clear interrupt flags by setting them (?!)
     // then enable all the interrupts we need to check
-    unsigned mask = 1 | (2047 << 15);
+    unsigned mask = 0x03FF8033;
     SDHCINTSTAT |= mask;
     SDHCINTEN   |= mask; 
 
@@ -273,7 +275,7 @@ static int card_cmd(unsigned int unit, unsigned int cmd, unsigned int arg, unsig
     //else
     //    printf("sdhc:  success\n");
 
-    // timeout
+    // timeout or other error
     if (SDHCINTSTAT & 0x03FF0000)
         return 1;
     
@@ -381,7 +383,6 @@ static int card_init(int unit)
         return 0;
     }
 
-
     /* Send repeatedly SEND_OP until Idle terminates. */
     for (i=0; ; i++)
     {
@@ -426,7 +427,7 @@ static int card_init(int unit)
         return 0;
     }
     u->rca = SDHCRESP0 & 0xFFFF0000;
-
+       
     // switch to fast speed
     sdhc_set_speed(SDHC_KHZ);
     return 1;
@@ -442,13 +443,15 @@ static int card_read_csd(int unit)
 
     sdhc_led(1);
 
-    reply = card_cmd(unit, CMD_SEND_CSD, u->rca, 0);        
+    reply = card_cmd(unit, CMD_SEND_CSD, u->rca, 0);
+/*    
     printf( "sdhc:  SEND_CSD:  RESP0 = %8x\n"
             "                  RESP1 = %8x\n"
             "                  RESP2 = %8x\n"
             "                  RESP3 = %8x\n"
             "                INTSTAT = %8x\n",
         SDHCRESP0, SDHCRESP1, SDHCRESP2, SDHCRESP3, SDHCINTSTAT);
+*/
     if (reply != 0)
     {
         printf("sdhc:  CMD_SEND_CSD failed\n");
@@ -458,6 +461,7 @@ static int card_read_csd(int unit)
 
     /* Read data. */
     // ugly code, but it lets us keep Serge's CSD parsing code
+    /* first attempt
     u->csd[0]  = SDHCRESP0 >> 24;
     u->csd[1]  = SDHCRESP0 >> 16;
     u->csd[2]  = SDHCRESP0 >> 8;
@@ -474,6 +478,23 @@ static int card_read_csd(int unit)
     u->csd[13] = SDHCRESP3 >> 16;
     u->csd[14] = SDHCRESP3 >> 8;
     u->csd[15] = SDHCRESP3 & 0xFF;
+    */
+    u->csd[0]  = SDHCRESP3 >> 16;
+    u->csd[1]  = SDHCRESP3 >> 8;
+    u->csd[2]  = SDHCRESP3 & 0xFF;
+    u->csd[3]  = SDHCRESP2 >> 24;
+    u->csd[4]  = SDHCRESP2 >> 16;
+    u->csd[5]  = SDHCRESP2 >> 8;
+    u->csd[6]  = SDHCRESP2 & 0xFF;
+    u->csd[7]  = SDHCRESP1 >> 24;
+    u->csd[8]  = SDHCRESP1 >> 16;
+    u->csd[9]  = SDHCRESP1 >> 8;
+    u->csd[10] = SDHCRESP1 & 0xFF;
+    u->csd[11] = SDHCRESP0 >> 24;
+    u->csd[12] = SDHCRESP0 >> 16;
+    u->csd[13] = SDHCRESP0 >> 8;
+    u->csd[14] = SDHCRESP0 & 0xFF;
+    u->csd[15] = 0;
 
     /* Disable the card. */
     sdhc_led(0);
@@ -510,6 +531,20 @@ static int card_size(int unit)
     default:                /* Unknown version. */
         return 0;
     }
+    printf("sdhc:  card size is %d MiB\n", nsectors / 2048);
+    
+    // use CMD_SELECT_CARD to move to transfer state
+    int reply = card_cmd(unit, CMD_SELECT_CARD, u->rca, 0);
+    if (reply != 0)
+    {
+        printf("sdhc:  CMD_SELECT_CARD failed, INTSTAT = %x\n", SDHCINTSTAT);
+        sdhc_led(0);
+        return 0;
+    }
+    int count;
+    sdhc_wait_ready(100, &count);
+    printf("sdhc:  sdhc_wait_ready returns, count = %d\n", count);
+    
     return nsectors;
 }
 
@@ -517,21 +552,21 @@ static int card_size(int unit)
 static inline void sdhc_wait_read_ready()
 {
     while (!(SDHCINTSTAT & (1 << 5)));
-    SDHCINTSTAT &= ~(1 << 5);
+    SDHCINTSTAT |= (1 << 5);
 }
 
 // wait for sdhc ready to received a word
 static inline void sdhc_wait_write_ready()
 {
     while (!(SDHCINTSTAT & (1 << 4)));
-    SDHCINTSTAT &= ~(1 << 4);
+    SDHCINTSTAT |= (1 << 4);
 }
 
 // wait until a transfer is complete
 static inline void sdhc_wait_transfer_complete()
 {
     while (!(SDHCINTSTAT & (1 << 1)));
-    SDHCINTSTAT &= !(1 << 1);
+    SDHCINTSTAT |= (1 << 1);
 }
 
 // read one word of sdhc response data into an unsigned char array
@@ -569,17 +604,20 @@ static void card_high_speed(int unit)
     /* Here we set HighSpeed 50MHz.
      * We do not tackle the power and io driver strength yet. */
     sdhc_led(1);
-    reply = card_cmd(unit, CMD_SWITCH_FUNC, 0x80000001, 0);
+    printf("sdhc:  sending CMD_SWITCH_FUNC\n");
+    reply = card_cmd(unit, CMD_SWITCH_FUNC, 0x80000001, 1);
     if (reply != 0) {
         /* Command timed out. */
         printf("sdhc:  card_size: SWITCH_FUNC timed out, reply = %d\n", reply);
         sdhc_led(0);
         return;
     }
+    printf("sdhc:  CMD_SWITCH_FUNC success, reading data\n");
 
     /* Read 64-byte status. */
     for (i=0; i<64; i+=4)
         sdhc_read_char(&status[i]);
+    printf("sdhc:  CMD_SWITCH_FUNC data read complete\n");
 
     /* Do at least 8 _slow_ clocks to switch into the HS mode. */
     // can we just delay awhile??
