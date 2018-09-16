@@ -244,12 +244,13 @@ static int card_cmd(unsigned int unit, unsigned int cmd, unsigned int arg, unsig
         shadow |= 1 << 4;
 
     // use auto CMD12 for read and write multiple
-    // use block count register for read and write multiple
     if (cmd == CMD_READ_MULTIPLE || cmd == CMD_WRITE_MULTIPLE)
-    {
         shadow |= 1 << 2;
+    
+    // use block count register for any commmand that reads or writes
+    if (cmd == CMD_SWITCH_FUNC || cmd == CMD_READ_MULTIPLE || cmd == CMD_WRITE_MULTIPLE ||
+        cmd == CMD_READ_SINGLE || cmd == CMD_WRITE_SINGLE)
         shadow |= 1 << 1;
-    }
 
     // clear interrupt flags by setting them (?!)
     // then enable all the interrupts we need to check
@@ -321,9 +322,13 @@ static void sdhc_set_speed(unsigned int speed)
     
     // disable SDHC clocks
     SDHCCON2 = 0;
+    
+    // set data timeout to maximum
+    SDHCCON2 |= 0x0F << 16;
+    
 
     // set divisor
-    SDHCCON2 = divisor << 8;
+    SDHCCON2 |= divisor << 8;
 
     // enable internal oscillator and wait for stability
     SDHCCON2 |= 1;
@@ -428,8 +433,6 @@ static int card_init(int unit)
     }
     u->rca = SDHCRESP0 & 0xFFFF0000;
        
-    // switch to fast speed
-    sdhc_set_speed(SDHC_KHZ);
     return 1;
 }
 
@@ -551,7 +554,22 @@ static int card_size(int unit)
 // wait for a word of sdhc response data to be ready
 static inline void sdhc_wait_read_ready()
 {
+    //int i = 0;
     while (!(SDHCINTSTAT & (1 << 5)));
+    /*
+    {
+        i++;
+        if (0 == i % 1000)
+        {
+            printf("sdhc:  i = %d, INTSTAT = %x\n", i, SDHCINTSTAT);
+        }
+        if (i > 100000)
+        {
+            printf("sdhc:  something is wrong, pausing forever\n");
+            while (1);
+        }
+    }
+    */
     SDHCINTSTAT |= (1 << 5);
 }
 
@@ -572,18 +590,16 @@ static inline void sdhc_wait_transfer_complete()
 // read one word of sdhc response data into an unsigned char array
 static void sdhc_read_char(char *b)
 {
-    sdhc_wait_read_ready();
     unsigned int shadow = SDHCDATA;
-    *(b+0) = shadow >> 24;
-    *(b+1) = shadow >> 16;
-    *(b+2) = shadow >> 8;
-    *(b+3) = shadow &  0xFF;
+    *(b+3) = shadow >> 24;
+    *(b+2) = shadow >> 16;
+    *(b+1) = shadow >> 8;
+    *(b+0) = shadow &  0xFF;
 }
 
 // write four bytes to one sdhc word
 static void sdhc_write_char(char *b)
 {
-    sdhc_wait_write_ready();
     unsigned int shadow = 0;
     shadow |= *(b+0);
     shadow |= *(b+1) << 8;
@@ -612,12 +628,18 @@ static void card_high_speed(int unit)
         sdhc_led(0);
         return;
     }
-    printf("sdhc:  CMD_SWITCH_FUNC success, reading data\n");
+    SDHCINTSTAT |= 1;
+    printf("sdhc:  CMD_SWITCH_FUNC success, RESP0 = %x, reading data\n", SDHCRESP0);
 
     /* Read 64-byte status. */
+    sdhc_wait_read_ready();
     for (i=0; i<64; i+=4)
         sdhc_read_char(&status[i]);
     printf("sdhc:  CMD_SWITCH_FUNC data read complete\n");
+    for (i=0; i < 64; i+=8)
+        printf("sdhc:  %2x %2x %2x %2x %2x %2x %2x %2x\n", 
+            status[i], status[i+1], status[i+2], status[i+3], 
+            status[i+4], status[i+5], status[i+6], status[i+7]);
 
     /* Do at least 8 _slow_ clocks to switch into the HS mode. */
     // can we just delay awhile??
@@ -627,7 +649,7 @@ static void card_high_speed(int unit)
         /* The card has switched to high-speed mode. */
         int khz;
 
-        card_read_csd(unit);
+        //card_read_csd(unit);
         switch (u->csd[3]) {
         default:
             printf("sdhc:  Unknown speed csd[3] = %02x\n", u->csd[3]);
@@ -684,18 +706,17 @@ card_read(int unit, unsigned int offset, char *data, unsigned int bcount)
 
     /* Send read-multiple command. */
     sdhc_led(1);
+    int cnt = 1;
     if (u->card_type != TYPE_SDHC)
         offset <<= 9;
 //printf("%s: sd_type = %u, offset = %08x\n", __func__, u->card_type, offset);
     if (bcount >= SECTSIZE)
     {
         int rem = bcount % SECTSIZE;
-        int cnt = bcount / SECTSIZE;
+        cnt = bcount / SECTSIZE;
         if (rem) cnt++;
-        reply = card_cmd(unit, CMD_READ_MULTIPLE, offset, cnt);
     }
-    else
-        reply = card_cmd(unit, CMD_READ_SINGLE, offset, 1);
+    reply = card_cmd(unit, cnt > 1 ? CMD_READ_MULTIPLE : CMD_READ_SINGLE, offset, cnt);
     if (reply != 0)
     {
         /* Command timed out. */
@@ -703,13 +724,29 @@ card_read(int unit, unsigned int offset, char *data, unsigned int bcount)
         sdhc_led(0);
         return 0;
     }
+    SDHCINTSTAT |= 1;
+    //printf("sdhc:  card_read complete, resp = %x\n", SDHCRESP0);
+    
 
     // Read data
-    for (i=0; i < bcount; i += 4)
-        sdhc_read_char(&data[i]);
+    int base;
+    for (base = 0; base < cnt; base++)
+    {
+        sdhc_wait_read_ready();
+        for (i=0; i < SECTSIZE; i += 4)
+            sdhc_read_char(&data[base * SECTSIZE + i]);
+    }
 
     // Wait transfer complete
     sdhc_wait_transfer_complete();
+    
+    /*
+    // dump the stuff we just read to the terminal
+    for (i=0; i < bcount; i+=8)
+        printf("sdhc:  %2x %2x %2x %2x %2x %2x %2x %2x\n", 
+            data[i], data[i+1], data[i+2], data[i+3], 
+            data[i+4], data[i+5], data[i+6], data[i+7]);
+    */
 
     // Done!
     sdhc_led(0);
@@ -743,15 +780,14 @@ card_write(int unit, unsigned offset, char *data, unsigned bcount)
     // send write command
     if (u->card_type != TYPE_SDHC)
         offset <<= 9;
+    int cnt = 1;
     if (bcount >= SECTSIZE)
     {
         int rem = bcount % SECTSIZE;
         int cnt = bcount / SECTSIZE;
         if (rem) cnt++;
-        reply = card_cmd(unit, CMD_WRITE_MULTIPLE, offset, cnt);
     }
-    else
-        reply = card_cmd(unit, CMD_WRITE_SINGLE, offset, 1);
+        reply = card_cmd(unit, cnt > 1 ? CMD_WRITE_MULTIPLE : CMD_WRITE_SINGLE, offset, cnt);
     if (reply != 0)
     {
         /* Command rejected. */
@@ -761,8 +797,13 @@ card_write(int unit, unsigned offset, char *data, unsigned bcount)
     }
 
     // write the data - hope it's a multiple of four bytes!
-    for (i = 0; i < bcount; i += 4)
-        sdhc_write_char(&data[i]);
+    int base;
+    for (base = 0; base < cnt; base++)
+    {
+        sdhc_wait_write_ready();
+        for (i = 0; i < bcount; i += 4)
+            sdhc_write_char(&data[SECTSIZE * base + i]);
+    }
 
     // wait for transfer complete
     sdhc_wait_transfer_complete();
@@ -834,8 +875,8 @@ sdhc_setup(struct disk *u)
         int i;
         for (i=1; i<=NPARTITIONS; i++) {
             if (u->part[i].dp_type != 0)
-                printf("sdhc%c:  partition type %02x, sector %u, size %u kbytes\n",
-                    i+'a'-1, u->part[i].dp_type,
+                printf("sdhc%d%c:  partition type %02x, sector %u, size %u kbytes\n",
+                    unit, i+'a'-1, u->part[i].dp_type,
                     u->part[i].dp_offset,
                     u->part[i].dp_size / 2);
         }
@@ -1094,12 +1135,12 @@ sdhcprobe(config)
     if (unit < 0 || unit >= NSDHC)
         return 0;
 
-    if (sdhc_setup(u) != 0) {
+    if (sdhc_setup(u) != 1) {
         printf("sdhc: cannot open SPI%u port\n", config->dev_ctlr);
         return 0;
     }
 
-    sdhc_set_speed(250);
+    //sdhc_set_speed(250);
 
     /* Assign disk index. */
     if (dk_ndrive < DK_NDRIVE) {

@@ -52,7 +52,7 @@ options         INET            # Internet protocols
 #options        MULTICAST       # Multicast support
 #options        MROUTING        # Multicast routing support
 
-config          vmunix  root on sd0a
+config          vmunix  root on sdhc0a
                         swap on ddr0a
 
 device          uart2   pins RB0, RG9	# onboard MCP2221 port
