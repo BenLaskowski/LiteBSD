@@ -222,6 +222,8 @@ dev_type_open(fdopen);
 
 cdev_decl(sd);
 
+cdev_decl(sdhc);
+
 cdev_decl(vn);
 /* open, read, write, ioctl -- XXX should be a disk */
 #define cdev_vn_init(c,n) { \
@@ -275,7 +277,7 @@ struct cdevsw   cdevsw[] =
     cdev_notdef(),                  /* 10: */
     cdev_vn_init(NVN,vn),           /* 11: vnode disk */
     cdev_bpf_init(NBPFILTER,bpf),   /* 12: berkeley packet filter */
-    cdev_notdef(),                  /* 13: */
+    cdev_disk_init(NSDHC,sdhc),     /* 13: SDHC flash card*/
     cdev_notdef(),                  /* 14: */
     cdev_notdef(),                  /* 15: */
     cdev_spi_init(NSPI,spi),        /* 16: SPI interface */
@@ -333,7 +335,7 @@ static int chrtoblktbl[MAXDEV] =  {
     /* 10 */        NODEV,
     /* 11 */        2,
     /* 12 */        NODEV,
-    /* 13 */        NODEV,
+    /* 13 */        4,
     /* 14 */        NODEV,
     /* 15 */        NODEV,
     /* 16 */        NODEV,

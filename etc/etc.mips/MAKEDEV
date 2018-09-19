@@ -8,6 +8,7 @@
 #	local	configuration specific devices
 # Disks:
 #	sd*	SD card
+#       sdhc*   SD card on SDHC interface
 #	vnd*	"file" pseudo-disks
 # Serial interfaces:
 #	spi*	SPI ports
@@ -42,10 +43,18 @@ std)
 	chmod 666 fd/*
 	;;
 
-sd*|vnd*)
-	umask 2 ; unit=`expr $i : '..\(.*\)'`
-	case $i in
-	sd*) name=sd; blk=0; chr=9;;
+sdhc*|sd*|vnd*)
+	umask 2
+	
+        # Handle variable width names
+        case $i in
+        sdhc*) unit=`expr $i : '....\(.*\)'`;;
+        sd*|vnd*) unit=`expr $i : '..\(.*\)'`;;
+        esac
+
+        case $i in
+	sdhc*) name=sdhc; blk=4; chr=13;;
+        sd*) name=sd; blk=0; chr=9;;
 	vnd*) name=vnd; blk=2; chr=11;;
 	esac
 	case $unit in
