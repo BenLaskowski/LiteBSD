@@ -338,6 +338,18 @@ minor 0
 cdev /dev/rvnd1
 major 11
 minor 8
+cdev /dev/rsdhc0
+major 13
+minor 0
+cdev /dev/rsdhc0a
+major 13
+minor 1
+cdev /dev/rsdhc0b
+major 13
+minor 2
+cdev /dev/rsdhc0c
+major 13
+minor 3
 
 # Use root.operator as owner for /dev/spi*, /dev/tty* and /dev/pty*
 default
@@ -583,6 +595,18 @@ minor 0
 bdev /dev/vnd1
 major 2
 minor 8
+bdev /dev/sdhc0
+major 4
+minor 0
+bdev /dev/sdhc0a
+major 4
+minor 1
+bdev /dev/sdhc0b
+major 4
+minor 2
+bdev /dev/sdhc0c
+major 4
+minor 3
 
 #------------------------------------------------------
 # Files: /

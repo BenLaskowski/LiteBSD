@@ -130,6 +130,7 @@ int sd_timo_wait_widle;
 #define CMD_ALL_SEND_CID        2
 #define CMD_SEND_REL_ADDR       3
 #define CMD_SWITCH_FUNC         6
+#define CMD_SET_BUS_WIDTH       6 | 64  /* ACMD6, a duplicate, so we OR it with 64 */
 #define CMD_SELECT_CARD         7
 #define CMD_SEND_IF_COND        8
 #define CMD_SEND_CSD            9
@@ -170,6 +171,7 @@ static void sdhc_wait_ready(int limit, int *maxcount)
             }
         }
     }
+    *maxcount = limit;
     printf("sdhc:  wait_ready(%d) failed\n", limit);
 }
 
@@ -201,7 +203,7 @@ static int card_cmd(unsigned int unit, unsigned int cmd, unsigned int arg, unsig
 
     // set up command
     // we can't write the command register until we know the entire bit pattern
-    unsigned int shadow = cmd << 24;
+    unsigned int shadow = (cmd & 63) << 24;
 
     // set abort bits for CMD12
     if (cmd == CMD_STOP)
@@ -227,13 +229,13 @@ static int card_cmd(unsigned int unit, unsigned int cmd, unsigned int arg, unsig
     // 48-bit response with busy (R1b):  CMD7, CMD12
     // 136-bit response (R2):  CMD2, CMD9, CMD10
     if (cmd == CMD_GO_IDLE)
-        shadow |= 0 << 16;
+        shadow |= 0 << 16;  // no response
     else if (cmd == CMD_SELECT_CARD || cmd == CMD_STOP)
-        shadow |= 3 << 16;
+        shadow |= 3 << 16;  // R1b
     else if (cmd == CMD_ALL_SEND_CID || cmd == CMD_SEND_CSD || cmd == CMD_SEND_CID)
-        shadow |= 1 << 16;
+        shadow |= 1 << 16;  // R2
     else
-        shadow |= 2 << 16;
+        shadow |= 2 << 16;  // R1
 
     // multiple block select
     if ((cmd == CMD_READ_MULTIPLE || cmd == CMD_WRITE_MULTIPLE) && n_sectors > 1)
@@ -254,7 +256,7 @@ static int card_cmd(unsigned int unit, unsigned int cmd, unsigned int arg, unsig
 
     // clear interrupt flags by setting them (?!)
     // then enable all the interrupts we need to check
-    unsigned mask = 0x03FF8033;
+    unsigned mask = 0x03FF81FF; //0x03FF8033;
     SDHCINTSTAT |= mask;
     SDHCINTEN   |= mask; 
 
@@ -268,7 +270,7 @@ static int card_cmd(unsigned int unit, unsigned int cmd, unsigned int arg, unsig
     //    shadow, SDHCBLKCON, SDHCARG, SDHCINTSTAT);
 
     // wait for command complete or timeout
-    while (!(SDHCINTSTAT & mask));
+    while (!(SDHCINTSTAT & mask));      
 
     // debugging statements
     //if (SDHCINTSTAT & ((1 << 16) | (1 << 20)))
@@ -554,22 +556,7 @@ static int card_size(int unit)
 // wait for a word of sdhc response data to be ready
 static inline void sdhc_wait_read_ready()
 {
-    //int i = 0;
     while (!(SDHCINTSTAT & (1 << 5)));
-    /*
-    {
-        i++;
-        if (0 == i % 1000)
-        {
-            printf("sdhc:  i = %d, INTSTAT = %x\n", i, SDHCINTSTAT);
-        }
-        if (i > 100000)
-        {
-            printf("sdhc:  something is wrong, pausing forever\n");
-            while (1);
-        }
-    }
-    */
     SDHCINTSTAT |= (1 << 5);
 }
 
@@ -672,6 +659,7 @@ static void card_high_speed(int unit)
             break;
         }
         sdhc_set_speed(khz);
+        SDHCCON1 |= 4;
     }
 
     /* Save function group information for later use. */
@@ -693,6 +681,19 @@ static void card_high_speed(int unit)
     sdhc_led(0);
 }
 
+// use ACMD6 to enable 4-bit mode
+static int
+card_4bit(int unit)
+{
+    struct disk *u = &sdhcdrives[unit];
+    int reply = card_cmd(unit, CMD_APP, u->rca, 0);   
+    reply = card_cmd(unit, CMD_SET_BUS_WIDTH, 2, 0);
+    if (0 != reply)
+        return 1;
+    SDHCCON1 |= 2;
+    return 0;
+}
+
 /*
  * Read a block of data.
  * Return nonzero if successful.
@@ -702,14 +703,13 @@ card_read(int unit, unsigned int offset, char *data, unsigned int bcount)
 {
     struct disk *u = &sdhcdrives[unit];
     int reply, i;
-//printf("--- %s: unit = %d, blkno = %d, bcount = %d\n", __func__, unit, offset, bcount);
+//printf("---R %s: unit = %d, blkno = %d, bcount = %d\n", __func__, unit, offset, bcount);
 
     /* Send read-multiple command. */
     sdhc_led(1);
     int cnt = 1;
     if (u->card_type != TYPE_SDHC)
         offset <<= 9;
-//printf("%s: sd_type = %u, offset = %08x\n", __func__, u->card_type, offset);
     if (bcount >= SECTSIZE)
     {
         int rem = bcount % SECTSIZE;
@@ -725,7 +725,6 @@ card_read(int unit, unsigned int offset, char *data, unsigned int bcount)
         return 0;
     }
     SDHCINTSTAT |= 1;
-    //printf("sdhc:  card_read complete, resp = %x\n", SDHCRESP0);
     
 
     // Read data
@@ -762,15 +761,24 @@ card_write(int unit, unsigned offset, char *data, unsigned bcount)
 {
     struct disk *u = &sdhcdrives[unit];
     unsigned reply, i;
-//printf("--- %s: unit = %d, blkno = %d, bcount = %d\n", __func__, unit, offset, bcount);
+//printf("---W %s: unit = %d, blkno = %d, bcount = %d\n", __func__, unit, offset, bcount);
 
-    /* Send pre-erase count. */
+    int cnt = 1;
+    if (bcount >= SECTSIZE)
+    {
+        int rem = bcount % SECTSIZE;
+        cnt = bcount / SECTSIZE;
+        if (rem) cnt++;
+    }
+    
     sdhc_led(1);
-    card_cmd(unit, CMD_APP, 0, 0);
-    reply = card_cmd(unit, CMD_SET_WBECNT, (bcount + SECTSIZE - 1) / SECTSIZE, 0);
+
+    // Send pre-erase count.
+    card_cmd(unit, CMD_APP, u->rca, 0); 
+    reply = card_cmd(unit, CMD_SET_WBECNT, cnt, 0);
     if (reply != 0)
     {
-        /* Command rejected. */
+        // Command rejected.
         sdhc_led(0);
         printf("sdhc:  card_write: bad SET_WBECNT reply = %02x, count = %u\n",
             reply, (bcount + SECTSIZE - 1) / SECTSIZE);
@@ -780,14 +788,7 @@ card_write(int unit, unsigned offset, char *data, unsigned bcount)
     // send write command
     if (u->card_type != TYPE_SDHC)
         offset <<= 9;
-    int cnt = 1;
-    if (bcount >= SECTSIZE)
-    {
-        int rem = bcount % SECTSIZE;
-        int cnt = bcount / SECTSIZE;
-        if (rem) cnt++;
-    }
-        reply = card_cmd(unit, cnt > 1 ? CMD_WRITE_MULTIPLE : CMD_WRITE_SINGLE, offset, cnt);
+    reply = card_cmd(unit, cnt > 1 ? CMD_WRITE_MULTIPLE : CMD_WRITE_SINGLE, offset, cnt);
     if (reply != 0)
     {
         /* Command rejected. */
@@ -801,7 +802,7 @@ card_write(int unit, unsigned offset, char *data, unsigned bcount)
     for (base = 0; base < cnt; base++)
     {
         sdhc_wait_write_ready();
-        for (i = 0; i < bcount; i += 4)
+        for (i = 0; i < SECTSIZE; i += 4)
             sdhc_write_char(&data[SECTSIZE * base + i]);
     }
 
@@ -854,6 +855,13 @@ sdhc_setup(struct disk *u)
          * SPI interface of pic32 allows up to 25MHz clock rate. */
         card_high_speed(unit);
     }
+    
+    // switch to 4-bit SDHC mode
+    if (0 != card_4bit(unit))
+        printf("sdhc:  Could not switch to 4-bit mode\n");
+    else
+        printf("sdhc:  Switched to 4-bit mode\n");
+    
     printf("sdhc:  type %s, size %u kbytes, speed %u Mbit/sec\n",
         u->card_type==TYPE_SDHC ? "SDHC" :
         u->card_type==TYPE_SD_II ? "II" : "I",
