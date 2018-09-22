@@ -729,11 +729,25 @@ card_read(int unit, unsigned int offset, char *data, unsigned int bcount)
 
     // Read data
     int base;
-    for (base = 0; base < cnt; base++)
+    if ((unsigned int)data & ~3)
     {
-        sdhc_wait_read_ready();
-        for (i=0; i < SECTSIZE; i += 4)
-            sdhc_read_char(&data[base * SECTSIZE + i]);
+        // non-word-aligned read loop
+        for (base = 0; base < cnt; base++)
+        {
+            sdhc_wait_read_ready();
+            for (i = 0; i < SECTSIZE; i += 4)
+                sdhc_read_char(&data[base * SECTSIZE + i]);
+        }
+    }
+    else
+    {
+        // word-aligned read loop
+        for (base = 0; base < cnt; base++)
+        {
+            sdhc_wait_read_ready();
+            for(i = 0; i < SECTSIZE; i +=4 )
+                *(unsigned int *)&data[base * SECTSIZE + i] = SDHCDATA;
+        }
     }
 
     // Wait transfer complete
@@ -799,11 +813,25 @@ card_write(int unit, unsigned offset, char *data, unsigned bcount)
 
     // write the data - hope it's a multiple of four bytes!
     int base;
-    for (base = 0; base < cnt; base++)
+    if ((unsigned int)data & ~3)
     {
-        sdhc_wait_write_ready();
-        for (i = 0; i < SECTSIZE; i += 4)
-            sdhc_write_char(&data[SECTSIZE * base + i]);
+        // non-word-aligned
+        for (base = 0; base < cnt; base++)
+        {
+            sdhc_wait_write_ready();
+            for (i = 0; i < SECTSIZE; i += 4)
+                sdhc_write_char(&data[SECTSIZE * base + i]);
+        }
+    }
+    else
+    {
+        // word-aligned
+        for (base = 0; base < cnt; base++)
+        {
+            sdhc_wait_write_ready();
+            for (i = 0; i < SECTSIZE; i += 4)
+                SDHCDATA = *(unsigned int *)&data[SECTSIZE * base + i];
+        }
     }
 
     // wait for transfer complete
